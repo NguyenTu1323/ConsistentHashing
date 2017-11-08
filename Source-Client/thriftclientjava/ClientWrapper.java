@@ -6,11 +6,14 @@
 package thriftclientjava;
 
 import consistentHashing.thriftStuff.ConsistentHashingThriftService;
+import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TNonblockingSocket;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
@@ -32,18 +35,29 @@ public class ClientWrapper {
             
             transport = new TSocket("localhost",9090);
             
+            //transport = new TNonblockingSocket("127.0.0.1",9090);
+            
+            
             transport.open();
+            
             
             protocol = new TBinaryProtocol(transport);
             
-            client = new ConsistentHashingThriftService.Client(protocol);
+            //protocol = new TBinaryProtocol(transport);
             
             
-            
-        } catch (TTransportException ex) {
-            Logger.getLogger(ClientWrapper.class.getName()).log(Level.SEVERE, null, ex);
+//            transport = new TFramedTransport(new TSocket("localhost",9090));
+//            protocol = new TBinaryProtocol(transport);
+//            
+//            
+//            
+//            
+          client = new ConsistentHashingThriftService.Client(protocol);
+//            
         }
-        
+        catch(Exception e){
+            
+        }
     }
     
     public boolean init(int numberOfNodes){

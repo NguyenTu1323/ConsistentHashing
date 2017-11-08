@@ -28,8 +28,10 @@ public class ThriftClientJava {
     
     public static ClientWrapper clientWrapper;
     
+    private static int scale = 100; // number of key to put per times
     
-    public static void interactive(){
+    
+    public static void interactive(ClientWrapper clientWrapper){
         Scanner in = new Scanner(System.in);
         
         
@@ -107,6 +109,14 @@ public class ThriftClientJava {
                 System.out.printf("%s", schema);
             }
             
+            if(operation.equals("allkey")){
+                for(int i = 0 ; i < 4*scale ; i++){
+                    key = "key" + Integer.toString(i);
+                    value = clientWrapper.get(key);
+                    System.out.printf("(%s,%s)\n", key,value);
+                }
+            }
+            
             if(operation.equals("exit")){
                 break;
             }
@@ -117,18 +127,94 @@ public class ThriftClientJava {
     
     
     public static void interactiveSession() throws TException{
+         
+        Thread t1 = new Thread(){
+            @Override
+            public void run() {
+                ClientWrapper clientWrapper1 = new ClientWrapper();
         
+                clientWrapper1.init(2);
+                
+//                try {
+//                    Thread.sleep(2000);
+//                } catch (InterruptedException ex) {
+//                    Logger.getLogger(ThriftClientJava.class.getName()).log(Level.SEVERE, null, ex);
+//                }
+//                
+                for(int i = 0 ; i < scale ; i++){
+                    clientWrapper1.put("key" + Integer.toString(i), "value" + Integer.toString(i));
+                    //System.out.printf("t1 up\n");
+                }
+                
+               clientWrapper1.init(1);
+                
+//                try {
+//                    Thread.sleep(1000);
+//                } catch (InterruptedException ex) {
+//                    Logger.getLogger(ThriftClientJava.class.getName()).log(Level.SEVERE, null, ex);
+//                }
+
+                clientWrapper1.removeNode("Node1");
+//                clientWrapper1.removeNode("Node3");
+//                
+                for(int i = scale ; i < 2*scale ; i++){
+                    clientWrapper1.put("key" + Integer.toString(i), "value" + Integer.toString(i));
+                    //System.out.printf("t1 down\n");
+                }
+                
+                System.out.printf("%s",clientWrapper1.printSchema());
+                
+                
+                interactive(clientWrapper1);
+            }
+            
+        };
         
-        clientWrapper = new ClientWrapper();
+        Thread t2 = new Thread(){
+            @Override
+            public void run() {
+                ClientWrapper clientWrapper2 = new ClientWrapper();
         
-        clientWrapper.init(5);
+                clientWrapper2.init(2);
+                
+//                try {
+//                    Thread.sleep(2000);
+//                } catch (InterruptedException ex) {
+//                    Logger.getLogger(ThriftClientJava.class.getName()).log(Level.SEVERE, null, ex);
+//                }
+                
+                for(int i = 2*scale ; i < 3*scale ; i++){
+                    clientWrapper2.put("key" + Integer.toString(i), "value" + Integer.toString(i));
+                    //System.out.printf("t2 up\n");
+                }       
+                
+               clientWrapper2.init(2);
+               
+               
+//                try {
+//                    Thread.sleep(2000);
+//                } catch (InterruptedException ex) {
+//                    Logger.getLogger(ThriftClientJava.class.getName()).log(Level.SEVERE, null, ex);
+//                }
+//                
+                for(int i = 3*scale ; i < 4*scale ; i++){
+                    clientWrapper2.put("key" + Integer.toString(i), "value" + Integer.toString(i));
+                    //System.out.printf("t2 down\n");
+                }
+                
+                System.out.printf("%s",clientWrapper2.printSchema());
+                
+                
+                //interactive(clientWrapper2);
         
-        for(int i = 0 ; i < 30 ; i++){
-            clientWrapper.put("key" + Integer.toString(i), "value" + Integer.toString(i));
-        }
-       
+            }
+            
+        };
         
-        interactive();
+        t1.start();
+        t2.start();
+        
+        // thằng này sẽ bị lỗi nếu như mà các NameNode hash ra cùng giá trị 
         
     }
     

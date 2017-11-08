@@ -35,6 +35,7 @@ public class ConsistentNode {
     
     public List<Long> getListHashValueOfVirtualNodes(){
         List<Long> listHash = new ArrayList<>();
+        // khong can dat lock o day , neu id_gen ma co tang trong luc vong lap dang chay thi cung khong anh huong gi toi hoa binh the gioi :v
         for(int i = 0 ; i < this.id_gen ; i++){
             listHash.add(HashOperations.hash(generatedVirtualNodeName(i)));
         }
@@ -43,8 +44,10 @@ public class ConsistentNode {
     
     public boolean put(String key, String value) {
         try{
-            databases.put(key, value);
-            return true;
+            synchronized(databases){
+                databases.put(key, value);
+                return true;
+            }
         }
         catch(Exception e){
             return false;
@@ -53,10 +56,16 @@ public class ConsistentNode {
 
     public String get(String key) {
         try{
-            if(databases.containsKey(key)){
-                return databases.get(key);
+            synchronized(databases){
+                if(databases.containsKey(key)){
+                    return databases.get(key);
+                }
+                else{
+                    // log
+                    System.out.printf("databases do not contains your query key\n");
+                    return null;
+                }
             }
-            return null;
         }
         catch(Exception e){
             return null;
@@ -64,23 +73,31 @@ public class ConsistentNode {
     }
 
     void remove(String key) {
-        if(databases.containsKey(key)){
-            databases.remove(key);
+        synchronized(databases){
+            if(databases.containsKey(key)){
+                databases.remove(key);
+            }
         }
+        
     }
 
     String printSchema() {
         StringBuffer stringBuffer = new StringBuffer();
         stringBuffer.append(String.format("NodeName : %s , hashValue : %d\n",nodeName,hashValue));
-        for(String key : databases.keySet()){
-            stringBuffer.append(String.format("----- (%s , %s) hash = %d \n", key,databases.get(key),HashOperations.hash(key)));
+        synchronized(databases){
+            for(String key : databases.keySet()){
+                stringBuffer.append(String.format("----- (%s , %s) hash = %d \n", key,databases.get(key),HashOperations.hash(key)));
+            }
         }
         stringBuffer.append("\n");
         return stringBuffer.toString();
     }
 
     public String generatedVirtualNodeName() {
-        return  this.nodeName + ".Virtual" + Integer.toString(id_gen++);
+        synchronized(this){
+            // lock id_gen , khong cho 2 thang increase cung luc
+            return  this.nodeName + ".Virtual" + Integer.toString(id_gen++);   
+        }
     }
 
     private String generatedVirtualNodeName(int i) {

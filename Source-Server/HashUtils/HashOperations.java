@@ -32,14 +32,20 @@ public class HashOperations {
         
         // nhan vao string, hash roi sau do tra ve 1 so long 64 bit
         MessageDigest function = getInstance();
-        function.update(key.getBytes());
+        synchronized(function){
+            // @@ tat ca moi thang goi hash  deu dung chung function object , khong synchronized no la no override buffer cua nhau =>> hash sai bet 
+            // vi cai nay ma ton 1 ngay debug , fuck
+            
+            function.update(key.getBytes());
         
-        byte[] byteArray = function.digest();
+            byte[] byteArray = function.digest();
+
+
+            long result = truncatedAndGet64Bit(byteArray);
+
+            return result;
         
-        
-        long result = truncatedAndGet64Bit(byteArray);
-        
-        return result;
+        }
         
     }
 
