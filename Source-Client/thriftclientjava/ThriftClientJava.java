@@ -5,8 +5,14 @@
  */
 package thriftclientjava;
 
+import thriftclientjava.Tasks.RemoveNodeTask;
+import thriftclientjava.Tasks.PutKeyTask;
+import thriftclientjava.Tasks.AddNodeTask;
+import thriftclientjava.Tasks.Tasks;
 import consistentHashing.thriftStuff.ConsistentHashingThriftService;
 import java.util.Scanner;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.thrift.TException;
@@ -28,8 +34,12 @@ public class ThriftClientJava {
     
     public static ClientWrapper clientWrapper;
     
-    private static int scale = 100; // number of key to put per times
+    private static int scale = 1000; // number of key to put per times
     
+    private static int genKeyId =0;
+    
+    public static int batchSize = 200000;
+
     
     public static void interactive(ClientWrapper clientWrapper){
         Scanner in = new Scanner(System.in);
@@ -46,13 +56,13 @@ public class ThriftClientJava {
             operation = in.next();
             
             if(operation.equals("addnode")){
-                masterNodeName = in.next();
-                flag = clientWrapper.addNode(masterNodeName);
+                //masterNodeName = in.next();
+                flag = clientWrapper.addNode();
                 if(flag == true){
-                    System.out.printf("add node %s successfully\n", masterNodeName);
+                    System.out.printf("add node successfully\n");
                 }
                 else{
-                    System.out.printf("add node %s fail\n",masterNodeName);
+                    System.out.printf("add node fail\n");
                 }
             }
             
@@ -110,7 +120,7 @@ public class ThriftClientJava {
             }
             
             if(operation.equals("allkey")){
-                for(int i = 0 ; i < 4*scale ; i++){
+                for(int i = 0 ; i < genKeyId ; i++){
                     key = "key" + Integer.toString(i);
                     value = clientWrapper.get(key);
                     System.out.printf("(%s,%s)\n", key,value);
@@ -132,8 +142,9 @@ public class ThriftClientJava {
             @Override
             public void run() {
                 ClientWrapper clientWrapper1 = new ClientWrapper();
+                clientWrapper1.initConnection();
         
-                clientWrapper1.init(2);
+                clientWrapper1.init(4);
                 
 //                try {
 //                    Thread.sleep(2000);
@@ -146,7 +157,7 @@ public class ThriftClientJava {
                     //System.out.printf("t1 up\n");
                 }
                 
-               clientWrapper1.init(1);
+               clientWrapper1.init(4);
                 
 //                try {
 //                    Thread.sleep(1000);
@@ -155,7 +166,7 @@ public class ThriftClientJava {
 //                }
 
                 clientWrapper1.removeNode("Node1");
-//                clientWrapper1.removeNode("Node3");
+                clientWrapper1.removeNode("Node3");
 //                
                 for(int i = scale ; i < 2*scale ; i++){
                     clientWrapper1.put("key" + Integer.toString(i), "value" + Integer.toString(i));
@@ -174,8 +185,9 @@ public class ThriftClientJava {
             @Override
             public void run() {
                 ClientWrapper clientWrapper2 = new ClientWrapper();
-        
-                clientWrapper2.init(2);
+                clientWrapper2.initConnection();
+                
+                clientWrapper2.init(3);
                 
 //                try {
 //                    Thread.sleep(2000);
@@ -188,7 +200,7 @@ public class ThriftClientJava {
                     //System.out.printf("t2 up\n");
                 }       
                 
-               clientWrapper2.init(2);
+               clientWrapper2.init(5);
                
                
 //                try {
@@ -214,22 +226,105 @@ public class ThriftClientJava {
         t1.start();
         t2.start();
         
-        // thằng này sẽ bị lỗi nếu như mà các NameNode hash ra cùng giá trị 
+        
+        
+    }
+    
+    
+    public static void threadpoolImplementation(){
+        
+        int maxThreads = 20;
+        int maxTasks = 801000;
+        
+        BlockingQueue<Tasks> blockingQueue = new ArrayBlockingQueue<>(maxTasks);
+        
+        ThreadPool pools = new ThreadPool(maxThreads, blockingQueue);
+        
+        initializeTaskQueue(blockingQueue);
+        
+        ClientWrapper clientWrapper = new ClientWrapper();
+        clientWrapper.initConnection();
+        
+        interactive(clientWrapper);
         
     }
     
     
     public static void main(String[] args){
         
+ 
+            //interactiveSession();
+            threadpoolImplementation();
+            
+            
+            
+        
+    }
+
+    private static void initializeTaskQueue(BlockingQueue<Tasks> blockingQueue) {
+                
+        
+        
+        // insert 7 nodes 
+        insertNode(blockingQueue,7);
+       
+        
         try {
-            interactiveSession();
-            
-            
-            
-        } catch (TException ex) {
+            // to make sure thay server has nodes before any putting key operations
+            // otherwise keys will be lost
+            Thread.sleep(2000);
+        } catch (InterruptedException ex) {
             Logger.getLogger(ThriftClientJava.class.getName()).log(Level.SEVERE, null, ex);
         }
         
+        // insert batchSize keys : 1
+        insertBatchSizeKeys(blockingQueue);
+        
+        
+        // insert 4 nodes
+        insertNode(blockingQueue,4);
+        
+        // insert batchSize key : 2
+        insertBatchSizeKeys(blockingQueue);
+        
+        
+        // remove 1 node
+        blockingQueue.add(new RemoveNodeTask("Node0"));
+        
+        // insert 3 more nodes
+        insertNode(blockingQueue,3);
+        
+        // insert batchSize key : 3
+        insertBatchSizeKeys(blockingQueue);
+        
+        //remove 2 node
+        blockingQueue.add(new RemoveNodeTask("Node1"));
+        blockingQueue.add(new RemoveNodeTask("Node2"));
+        
+        
+        
+        // insert batchSize key : 4
+        insertBatchSizeKeys(blockingQueue);
+        
+        // remove 1 node
+        blockingQueue.add(new RemoveNodeTask("Node3"));
+        
+    }
+
+    private static void insertNode(BlockingQueue blockingQueue,int numberNode) {
+        // create #numberNode tasks to put in the queue
+         for(int i = 0 ; i < numberNode ; i++){
+            Tasks tasks = new AddNodeTask();
+            // insert task to queue
+            blockingQueue.add(tasks);
+        }
+    }
+
+    private static void insertBatchSizeKeys(BlockingQueue blockingQueue) {
+        for(int i = 0; i < batchSize ; i++){
+            Tasks tasks = new PutKeyTask("key" + Integer.toString(genKeyId), "value" + Integer.toString(genKeyId++));
+            blockingQueue.add(tasks);
+        }
     }
     
 }

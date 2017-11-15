@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -21,36 +23,25 @@ import java.util.logging.Logger;
 public class ConsistentHashing {
 
     public static Integer genID = 0;
-    
-    public Map<Long,ConsistentNode> nodes;
-    
+    public ConcurrentMap<Long,ConsistentNode> nodes;
     public List<Long> nodeHashValues;
-    
-    public Map<Long,Long> masters;
-    
-    
-    int fibo(int n){
-        return n <= 1 ? n : fibo(n-1) + fibo(n-2);
-    }
+    public ConcurrentMap<Long,Long> masters;
     
     
     public ConsistentHashing(){
-        this.nodes = new HashMap<Long,ConsistentNode>();
+        this.nodes = new ConcurrentHashMap<>();
         this.nodeHashValues = new ArrayList<Long>();
-        this.masters = new HashMap<>();
+        this.masters = new ConcurrentHashMap<>();
     }
     
     public boolean init(int numberOfNodes) {
         
         // hyper-parameter , tuning here
-        int numberOfVirtualNodes = 2;
+        int numberOfVirtualNodes = 3;
         
         try{
             for(int i = 0 ; i < numberOfNodes ; i++){
-                // add master node
-                String masterNodeName = generateNodeName();
-                System.out.printf("MasterNodeName : %s\n", masterNodeName);
-                addMasterNode(masterNodeName);
+                String masterNodeName =  addMasterNode();
                 
                 // add virtual nodes
                 for(int j = 0 ; j < numberOfVirtualNodes ; j++){
@@ -61,11 +52,6 @@ public class ConsistentHashing {
             
             // log 
             System.out.printf("init %d nodes complete\n",numberOfNodes);
-            
-            
-//            fibo(47);
-//            
-//            System.out.printf("cur ID node %d\n" , genID);
             
             return true;
             
@@ -140,7 +126,6 @@ public class ConsistentHashing {
     }
 
     private int AddNodeHashValueIntoList(long hashValue) {
-        // test ham nay
         int i = 0 ;
         synchronized(nodeHashValues){
             for(i = 0 ; i < nodeHashValues.size() ;){
@@ -200,18 +185,19 @@ public class ConsistentHashing {
         }
     }
 
-    public boolean addMasterNode(String nodeName) {
-        try{   
+    public String addMasterNode() {
+        try{
+            String nodeName = generateNodeName();
             System.out.printf("in addMaster : %s\n", nodeName);
             long hashValue = HashOperations.hash(nodeName);
-            synchronized(masters){
-                masters.put(hashValue, hashValue);   
-            }
+            //synchronized(masters){
+                 masters.put(hashValue, hashValue);   
+            //}
     
             
-            synchronized(nodes){
+            //synchronized(nodes){
                 nodes.put(hashValue,new ConsistentNode(nodeName, hashValue));
-            }
+            //}
             
 
             int idNodeNextInList;
@@ -228,22 +214,13 @@ public class ConsistentHashing {
                 ConsistentNode node = nodes.get(hashMaster);
             
                 RearrangeKey(node);
-            
-              
+        
             }
-
-            //ConsistentNode node = nodes.get(nodeHashValues.get(idNodeNextInList));
-            
-            // do not need to lock here , if node does not exist , just let it be null and ReaarangeKey do nothing
-//            ConsistentNode node = nodes.get(hashMaster);
-//            
-//            RearrangeKey(node);
-//            
             
             // log 
             System.out.printf("add node (nodename = %s) successfully\n",nodeName);
 
-            return true;
+            return nodeName;
             
         }catch(Exception e){
             
@@ -251,7 +228,7 @@ public class ConsistentHashing {
             System.out.printf("add node fail\n");
             
             
-            return false;
+            return null;
         }
     }
 
@@ -263,7 +240,9 @@ public class ConsistentHashing {
 
     private int getIdNextNodeInList(int idNodeInList) {
             // in case other threads modify nodeHashValues
-        return (idNodeInList + 1) % nodeHashValues.size();
+        synchronized(nodeHashValues){
+            return (idNodeInList + 1) % nodeHashValues.size();
+        }
     }
 
     private void RearrangeKey(ConsistentNode node) {
@@ -274,7 +253,7 @@ public class ConsistentHashing {
             
             Map<String,String> databases = node.databases;
             node.databases = null;
-            node.databases = new HashMap<>();
+            node.databases = new ConcurrentHashMap<String,String>();
 
             for(String key : databases.keySet()){
                 System.out.printf("-------key = %s\n",key);
@@ -294,23 +273,12 @@ public class ConsistentHashing {
     public boolean removeNode(String masterNodeName) {
         try{
             
-//            long hashValueOfNode = HashOperations.hash(nodeName); // lay hashValue cua node dem di remove
-//            int removedNodeId = getNodeIdBasedOnHashValue(hashValueOfNode);
-//        
-//            ConsistentNode removeNode = nodes.get(nodeHashValues.get(removedNodeId)); // tim cai node de remove
-//
-//            Map<String,String> databaseRemovedNode = removeNode.databases;
-//            
-//            nodeHashValues.remove(removedNodeId);
-//            
-//            nodes.remove(hashValueOfNode);
-
             long hashValueMasterNode = HashOperations.hash(masterNodeName);
             ConsistentNode removedNode;
             
-            synchronized(nodes){
+            //synchronized(nodes){
                 removedNode = nodes.get(hashValueMasterNode);
-            }
+            //}
      
             if(removedNode == null){
                 // node nay khong co trong danh sach node hoac da bi remove
@@ -318,7 +286,7 @@ public class ConsistentHashing {
             }
             
             List<Long> hashValueVirtualNodeLists = removedNode.getListHashValueOfVirtualNodes();
-            Map<String,String> databaseRemovedNode = removedNode.databases;
+            ConcurrentMap<String,String> databaseRemovedNode = removedNode.databases;
             
             synchronized(nodeHashValues){
                 // vi remove cac element trong nodeHashValues nen lock no lai 
@@ -328,15 +296,14 @@ public class ConsistentHashing {
                 }
             }
             
-            
-//            
+                       
             // ok da remove xong node , h dem cac (key,value) phan phat lai vao cac node khac 
             
-            synchronized(databaseRemovedNode){
+            //synchronized(databaseRemovedNode){
                 for(String key : databaseRemovedNode.keySet()){
                     put(key,databaseRemovedNode.get(key));
                 }
-            }
+            //}
             
             
             

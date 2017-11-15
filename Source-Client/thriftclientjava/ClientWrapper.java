@@ -25,39 +25,13 @@ import org.apache.thrift.transport.TTransportException;
 public class ClientWrapper {
     
     
-    private ConsistentHashingThriftService.Client client ;
-    private TTransport transport;
-    private TProtocol protocol;
+    public ConsistentHashingThriftService.Client client = null;
+    private TTransport transport = null;
+    private TProtocol protocol = null;
     
     
     public ClientWrapper(){
-        try {
-            
-            transport = new TSocket("localhost",9090);
-            
-            //transport = new TNonblockingSocket("127.0.0.1",9090);
-            
-            
-            transport.open();
-            
-            
-            protocol = new TBinaryProtocol(transport);
-            
-            //protocol = new TBinaryProtocol(transport);
-            
-            
-//            transport = new TFramedTransport(new TSocket("localhost",9090));
-//            protocol = new TBinaryProtocol(transport);
-//            
-//            
-//            
-//            
-          client = new ConsistentHashingThriftService.Client(protocol);
-//            
-        }
-        catch(Exception e){
-            
-        }
+        
     }
     
     public boolean init(int numberOfNodes){
@@ -72,7 +46,13 @@ public class ClientWrapper {
     
     public boolean put(String key, String value){
         try {
+            if(client == null){
+                // try to init connection again 
+                initConnection();
+                // if success client is not null now 
+            }
             boolean flag = client.put(key, value);
+            //System.out.printf("%s\n", key);
             return flag;
         } catch (TException ex) {
             Logger.getLogger(ClientWrapper.class.getName()).log(Level.SEVERE, null, ex);
@@ -90,9 +70,9 @@ public class ClientWrapper {
         }
     }
     
-    public boolean addNode(String nodeName){
+    public boolean addNode(){
         try {
-            boolean flag =  client.addNode(nodeName);
+            boolean flag =  client.addNode();
             return flag;
         } catch (TException ex) {
             Logger.getLogger(ClientWrapper.class.getName()).log(Level.SEVERE, null, ex);
@@ -127,6 +107,35 @@ public class ClientWrapper {
         } catch (TException ex) {
             Logger.getLogger(ClientWrapper.class.getName()).log(Level.SEVERE, null, ex);
             return false;
+        }
+    }
+
+    
+    public void closeConnection(){
+        transport.close();
+    }
+    
+    public void initConnection() {
+        try {
+            
+            transport = new TSocket("localhost",9090);
+            
+            // if machine surpress the number of connection it can create(1024 in this case) , transport.open() will deny and throw an exception 
+            transport.open();
+            
+            
+            protocol = new TBinaryProtocol(transport);
+            
+            client = new ConsistentHashingThriftService.Client(protocol);
+          
+          
+          
+        } catch (TTransportException ex) {
+            // case cannot open connection 
+            Logger.getLogger(ClientWrapper.class.getName()).log(Level.SEVERE, null, ex);
+            String cause = ex.getMessage();
+            System.out.printf("%s\n", cause);
+            
         }
     }
     

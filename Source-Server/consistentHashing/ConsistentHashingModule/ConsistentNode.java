@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  *
@@ -21,14 +23,14 @@ public class ConsistentNode {
     
     public long hashValue;
     
-    public Map<String,String> databases ;
+    public ConcurrentMap<String,String> databases ;
     
     private int id_gen;
 
     ConsistentNode(String nodeName, long hashValue) {
         this.nodeName = nodeName;
         this.hashValue = hashValue;
-        this.databases = new HashMap<String,String>();
+        this.databases = new ConcurrentHashMap<>();
         this.id_gen = 0;
     }
     

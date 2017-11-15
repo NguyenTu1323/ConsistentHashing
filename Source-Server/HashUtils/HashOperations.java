@@ -54,11 +54,17 @@ public class HashOperations {
         // that ra lay 7 thoi
         long res = 0;
         
-        int offset = 12;
+        int offset = 8;
         
-        for(int i = offset ; i < offset+7 ; i++){
+        int stride = 1;
+        
+        for(int i = offset ; i < offset+stride*9 ; i+=1){
             long tmp = byteArray[i];
-            res = res | (tmp << (8*(i-offset)));
+            long mask = (tmp << (6*(i-offset)));
+            mask = mask <0 ? -mask : mask;
+            res = res | mask;
+            //long cc = res | mask;
+            //System.out.printf("tmp = %d  mask = %d  res = %d  cc = %d\n",tmp,mask,res,cc);
         }
         
         return res < 0 ? -res : res ; // lay res duong

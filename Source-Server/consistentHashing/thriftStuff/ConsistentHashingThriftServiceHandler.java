@@ -33,8 +33,8 @@ public class ConsistentHashingThriftServiceHandler implements ConsistentHashingT
     }
 
     @Override
-    public boolean addNode(String nodeName) throws TException {
-        return hashingModule.addMasterNode(nodeName);
+    public boolean addNode() throws TException {
+        return hashingModule.addMasterNode() != null;
     }
 
     @Override
